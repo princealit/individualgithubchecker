@@ -61,8 +61,17 @@ export default function AnalyzerForm() {
       if (response.data.error) {
         setError(response.data.error);
       }
-    } catch (err) {
-      setError('Failed to analyze GitHub profile. Please check the username and try again.');
+    } catch (err: any) {
+      // Show specific error message from API if available
+      let errorMessage = 'Failed to analyze GitHub profile. Please check the username and try again.';
+      
+      if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
       console.error('Analysis error:', err);
     } finally {
       setLoading(false);
