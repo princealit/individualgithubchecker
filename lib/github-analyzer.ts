@@ -105,7 +105,23 @@ export class GitHubRepoAnalyzer {
     return repos;
   }
 
-  async getRepoContents(owner: string, repoName: string, path: string = ''): Promise<FileInfo[]> {
+  async getRepoContents(owner: string, repoName: string, path: string = '', depth: number = 0, fileCount: { count: number } = { count: 0 }): Promise<FileInfo[]> {
+    // Safety limits to prevent infinite loading
+    const MAX_DEPTH = 5;
+    const MAX_FILES = 1000;
+    
+    // Stop if we've gone too deep or found too many files
+    if (depth > MAX_DEPTH || fileCount.count > MAX_FILES) {
+      return [];
+    }
+
+    // Skip problematic directories
+    const skipDirs = ['node_modules', '.git', 'dist', 'build', '.next', 'vendor', 'target', '__pycache__'];
+    const pathName = path.split('/').pop() || '';
+    if (skipDirs.includes(pathName)) {
+      return [];
+    }
+
     const url = `https://api.github.com/repos/${owner}/${repoName}/contents/${path}`;
     
     try {
@@ -118,11 +134,15 @@ export class GitHubRepoAnalyzer {
       const files: FileInfo[] = [];
       
       for (const item of contentArray) {
+        // Stop if we've hit the file limit
+        if (fileCount.count > MAX_FILES) break;
+
         if (item.type === 'file') {
           files.push(item);
+          fileCount.count++;
         } else if (item.type === 'dir') {
-          // Recursively get directory contents
-          const subFiles = await this.getRepoContents(owner, repoName, item.path);
+          // Recursively get directory contents with increased depth
+          const subFiles = await this.getRepoContents(owner, repoName, item.path, depth + 1, fileCount);
           files.push(...subFiles);
         }
       }
@@ -136,9 +156,20 @@ export class GitHubRepoAnalyzer {
 
   async downloadFileContent(downloadUrl: string): Promise<string> {
     try {
+      // Add timeout protection (10 seconds)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
       const response = await this.fetchWithAuth(downloadUrl);
+      clearTimeout(timeoutId);
+      
       if (response.ok) {
-        return await response.text();
+        const text = await response.text();
+        // Limit file size to prevent memory issues
+        if (text.length > 500000) { // 500KB max
+          return text.substring(0, 500000);
+        }
+        return text;
       }
       return '';
     } catch (error) {
@@ -182,6 +213,12 @@ export class GitHubRepoAnalyzer {
     ]);
 
     for (const fileInfo of files) {
+      // Limit processing to prevent infinite loading (max 200 files per repo)
+      if (fileStats.processed_files >= 200) {
+        console.log(`Stopping analysis for ${repo.name} - processed 200 files`);
+        break;
+      }
+
       const filePath = fileInfo.path;
       const fileExt = '.' + filePath.split('.').pop()?.toLowerCase() || '';
 
