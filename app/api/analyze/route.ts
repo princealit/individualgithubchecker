@@ -3,7 +3,7 @@ import { GitHubRepoAnalyzer } from '@/lib/github-analyzer';
 
 export async function POST(request: NextRequest) {
   try {
-    const { username, minTokens = 1000000 } = await request.json();
+    const { username, minTokens = 1000000, githubToken } = await request.json();
 
     if (!username) {
       return NextResponse.json(
@@ -21,13 +21,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check if GitHub token is available
-    const githubToken = process.env.GITHUB_TOKEN;
-    console.log('GitHub token available:', !!githubToken);
+    // Use user-provided token, fallback to environment variable, or use no token
+    const tokenToUse = githubToken || process.env.GITHUB_TOKEN;
+    
+    console.log('GitHub token provided by user:', !!githubToken);
+    console.log('GitHub token from environment:', !!process.env.GITHUB_TOKEN);
+    console.log('Using token:', !!tokenToUse);
     console.log('Analyzing user:', cleanUsername);
 
-    // Initialize analyzer with GitHub token if available
-    const analyzer = new GitHubRepoAnalyzer(githubToken);
+    // Initialize analyzer with the token (user-provided or environment)
+    const analyzer = new GitHubRepoAnalyzer(tokenToUse);
 
     // Run the analysis
     const results = await analyzer.analyzeUserProfile(cleanUsername, minTokens);
@@ -49,11 +52,11 @@ export async function POST(request: NextRequest) {
     let errorMessage = 'Failed to analyze GitHub profile';
     if (error instanceof Error) {
       if (error.message.includes('Rate limit exceeded')) {
-        errorMessage = 'GitHub API rate limit exceeded. Please try again in a few minutes or add a GitHub token.';
+        errorMessage = 'GitHub API rate limit exceeded. Please provide a GitHub Personal Access Token for higher rate limits.';
       } else if (error.message.includes('not found')) {
         errorMessage = 'GitHub user not found. Please check the username and try again.';
       } else if (error.message.includes('403')) {
-        errorMessage = 'Access denied. This might be due to rate limiting or a private repository.';
+        errorMessage = 'Access denied. This might be due to rate limiting. Please provide a GitHub Personal Access Token.';
       } else if (error.message.includes('fetch')) {
         errorMessage = 'Network error. Please check your connection and try again.';
       } else {
@@ -71,7 +74,9 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   return NextResponse.json({
     message: 'GitHub Repository Analyzer API',
-    usage: 'POST /api/analyze with { "username": "github_username", "minTokens": 1000000 }',
-    github_token_configured: !!process.env.GITHUB_TOKEN
+    usage: 'POST /api/analyze with { "username": "github_username", "minTokens": 1000000, "githubToken": "optional_github_token" }',
+    note: 'For higher rate limits (5000 vs 60 requests/hour), provide your GitHub Personal Access Token',
+    create_token: 'https://github.com/settings/tokens (only needs public_repo scope)',
+    environment_token_configured: !!process.env.GITHUB_TOKEN
   });
 } 

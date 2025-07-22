@@ -31,6 +31,7 @@ interface RepoAnalysis {
 
 export default function AnalyzerForm() {
   const [githubUrl, setGithubUrl] = useState('');
+  const [githubToken, setGithubToken] = useState('');
   const [minTokens, setMinTokens] = useState(1000000);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<AnalysisResult | null>(null);
@@ -51,7 +52,8 @@ export default function AnalyzerForm() {
     try {
       const response = await axios.post('/api/analyze', {
         username: githubUrl.trim(),
-        minTokens
+        minTokens,
+        githubToken: githubToken.trim() || undefined
       });
 
       setResults(response.data);
@@ -104,6 +106,33 @@ export default function AnalyzerForm() {
             />
             <p className="text-xs text-gray-500 mt-1">
               Examples: https://github.com/torvalds, github.com/microsoft, or just 'octocat'
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="github-token" className="block text-sm font-medium text-gray-700 mb-2">
+              GitHub Personal Access Token (Optional but Recommended)
+            </label>
+            <input
+              id="github-token"
+              type="password"
+              value={githubToken}
+              onChange={(e) => setGithubToken(e.target.value)}
+              placeholder="github_pat_..."
+              className="input-field"
+              disabled={loading}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              <span className="text-amber-600 font-medium">Recommended:</span> Without a token, you're limited to 60 requests/hour. 
+              <a 
+                href="https://github.com/settings/tokens" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-blue-600 hover:text-blue-800 underline ml-1"
+              >
+                Create a token here
+              </a> 
+              (only needs 'public_repo' scope)
             </p>
           </div>
 
