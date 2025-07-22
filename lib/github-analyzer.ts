@@ -67,7 +67,7 @@ export class GitHubRepoAnalyzer {
     };
 
     if (this.githubToken) {
-      headers['Authorization'] = `Bearer ${this.githubToken}`;
+      headers['Authorization'] = `token ${this.githubToken}`;
     }
 
     return fetch(url, { headers });
